@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>WebDNS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 30px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            width: 400px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        p#error {
+            color: red;
+        }
+        p#result {
+            color: green;
+        }
+    </style>
+    <script>
+        // 内置 DNS 映射
+        const embeddedDnsData = {
+            "www.abc.def": "10.103.1.2",
+            "example.com": "192.168.1.100",
+            "test.local": "127.0.0.1",
+			"gitlab": "10.193.0.207",
+			"xyw": "10.193.0.207"
+        };
+
+        async function getDnsData(useEmbedded) {
+            if (useEmbedded) {
+                return embeddedDnsData;
+            } else {
+                try {
+                    const response = await fetch('dns.json');
+                    if (!response.ok) throw new Error("加载dns.json失败");
+                    return await response.json();
+                } catch (error) {
+                    document.getElementById('error').textContent = '加载外部DNS数据失败，请检查网络连接或文件路径。';
+                    throw error;
+                }
+            }
+        }
+
+        function buildTargetUrl(ip, useHttps, port, path, queryStr) {
+            let protocol = useHttps ? 'https' : 'http';
+            let defaultPort = useHttps ? '443' : '80';
+            let targetPort = port && port !== defaultPort ? `:${port}` : '';
+            let targetPath = path ? `/${path}` : '';
+            let queryString = queryStr ? `?${queryStr}` : '';
+            return `${protocol}://${ip}${targetPort}${targetPath}${queryString}`;
+        }
+
+        async function handleDns() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hostname = urlParams.get('hostname');
+            const useEmbedded = parseInt(urlParams.get('source')) === 0;
+            const useHttps = urlParams.get('secure') === 'true';
+            const port = urlParams.get('port');
+            const path = urlParams.get('path') || '';
+            const query = urlParams.get('query') || '';
+
+            const resultElement = document.getElementById("result");
+            const errorElement = document.getElementById("error");
+
+            errorElement.textContent = '';
+            resultElement.textContent = '';
+
+            if (!hostname) {
+                errorElement.textContent = "未提供参数，请查阅文档或联系管理员。";
+                return;
+            }
+
+            try {
+                const dnsData = await getDnsData(useEmbedded);
+                const ip = dnsData[hostname];
+
+                if (ip) {
+                    const targetUrl = buildTargetUrl(ip, useHttps, port, path, query);
+                    resultElement.innerHTML = `正在跳转到: <strong>${targetUrl}</strong>`;
+                    setTimeout(() => {
+                        window.location.href = targetUrl;
+                    }, 1000);
+                } else {
+                    resultElement.textContent = `找不到与 "${hostname}" 对应的IP地址。`;
+                }
+            } catch (err) {
+                console.error("加载或处理DNS数据失败:", err);
+            }
+        }
+
+        window.onload = handleDns;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>WebDNS</h1>
+        <p id="error"></p>
+        <p id="result">正在解析...</p>
+		<h3>yuchenchuangsoft</h3>
+    </div>
+</body>
+</html>
